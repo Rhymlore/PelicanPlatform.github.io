@@ -4,31 +4,36 @@ import React from "react";
 import MarkdownContainer from '@/components/MarkdownContainer';
 import { GitHubReleaseData } from "../../../utils/github";
 
+async function getReleases() {
+  const url = `https://api.github.com/repos/PelicanPlatform/pelican/releases`;
+  return fetch(url).then(response => response.json());
+}
 export async function generateStaticParams() {
-  const allAssetsApiUrl = `https://api.github.com/repos/PelicanPlatform/pelican/releases`;
-  const releasesData = await fetch(allAssetsApiUrl).then(response => response.json());
-  const slugs = releasesData.map((release: GitHubReleaseData) => release.tag_name);
-  return slugs.map((slug: string) => ({ params: { slug: slug.split('.') } }));
+  const allReleases = await getReleases();
+  const params = allReleases.map((release: GitHubReleaseData) => ({
+    slug: release.tag_name.split('.')
+  }));
+  console.log('Static Params:', params); // Add this line
+  return params;
 }
 
 async function getPageData(slug: string[]) {
-  const allAssetsApiUrl = `https://api.github.com/repos/PelicanPlatform/pelican/releases`;
-  const releasesData = await fetch(allAssetsApiUrl).then(response => response.json());
-  const fullSlug = slug.join('.');
-  const [majorVersion, minorVersionBase] = fullSlug.split('.');
+  const allReleases = await getReleases();
+  const slugArray = slug.join('.');
+  const [majorVersion, minorVersionBase] = slugArray.split('.');
   const minorVersion = parseInt(minorVersionBase, 10);
   const newVersionPrefix = `${majorVersion}.${minorVersion}`;
-  const specificRelease = releasesData.find((release: GitHubReleaseData) => release.tag_name === fullSlug);
-  const patchReleases = releasesData.filter((release: GitHubReleaseData) => 
+  const release = allReleases.find((release: GitHubReleaseData) => release.tag_name === slugArray);
+  const minorReleases = allReleases.filter((release: GitHubReleaseData) => 
     release.tag_name.startsWith(newVersionPrefix) && 
     !release.tag_name.endsWith('0')
   );
-  return { specificRelease, patchReleases };
+  return { release, minorReleases };
 }
 
 const Page = async ({ params }: { params: { slug: string[] } }) => {
   const releaseData = await getPageData(params.slug);
-  const { specificRelease, patchReleases } = releaseData;
+  const { release, minorReleases } = releaseData;
 
   if (!releaseData) {
     return (
@@ -51,11 +56,11 @@ const Page = async ({ params }: { params: { slug: string[] } }) => {
         }} />
       </Box>
       <MarkdownContainer
-        content={specificRelease?.body || ""}
+        content={release?.body || ""}
       />
       <Box pt={4}>
         <Box pb={4}>
-          {patchReleases.map((release: GitHubReleaseData) => (
+          {minorReleases.map((release: GitHubReleaseData) => (
             <Accordion key={release.tag_name}>
               <AccordionSummary
                 expandIcon={<ArrowDropDownIcon />}
